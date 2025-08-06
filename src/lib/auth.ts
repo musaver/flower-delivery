@@ -113,7 +113,7 @@ export const authOptions: AuthOptions = {
       if (session.user && token.id) {
         session.user.id = token.id as string;
         
-        // Fetch user data to get userType
+        // Fetch user data to get userType and name
         try {
           const [userData] = await db
             .select()
@@ -122,6 +122,10 @@ export const authOptions: AuthOptions = {
           
           if (userData) {
             session.user.userType = userData.userType;
+            // If name is not in session but exists in database, use database name
+            if (!session.user.name && userData.name) {
+              session.user.name = userData.name;
+            }
           }
         } catch (error) {
           console.error('Error fetching user data in session:', error);

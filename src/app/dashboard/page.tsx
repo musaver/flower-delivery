@@ -29,20 +29,29 @@ export default async function DashboardPage() {
     redirect('/register');
   }
 
-  // Fetch user type to determine dashboard type
+  // Fetch user data including name and type
   let userType = 'customer';
+  let userName = session.user?.name || null;
+  
   try {
     const userData = await db
-      .select({ userType: user.userType })
+      .select({ 
+        userType: user.userType,
+        name: user.name 
+      })
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1);
     
     if (userData.length > 0) {
       userType = userData[0].userType || 'customer';
+      // If name is not in session but exists in database, use database name
+      if (!userName && userData[0].name) {
+        userName = userData[0].name;
+      }
     }
   } catch (error) {
-    console.error('Error fetching user type:', error);
+    console.error('Error fetching user data:', error);
   }
 
   // If user is a driver, show driver dashboard
@@ -174,7 +183,7 @@ export default async function DashboardPage() {
                 <span className="text-xl text-primary-foreground font-bold">JD</span>
               </div>
               <div>
-                <h2 className="text-xl font-bold">{session.user?.name}</h2>
+                <h2 className="text-xl font-bold">{userName || 'User'}</h2>
                 <p className="text-muted-foreground">{session.user?.email}</p>
                 <p className="text-sm text-muted-foreground">Member since Jan 2024</p>
               </div>
