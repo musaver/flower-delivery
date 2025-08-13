@@ -26,7 +26,7 @@ interface DriverOrder {
   items: OrderItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled';
-  deliveryStatus: 'pending' | 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered' | 'failed';
+  deliveryStatus: 'pending' | 'assigned' | 'out_for_delivery' | 'delivered' | 'failed';
   paymentMethod: 'cod' | 'gateway';
   paymentStatus: string;
   orderNotes?: string;
@@ -144,7 +144,7 @@ export function DeliveryList({ session }: DeliveryListProps) {
   }, [driverInfo?.id]);
 
   const activeOrders = orders.filter(order => 
-    ['assigned', 'picked_up', 'out_for_delivery'].includes(order.deliveryStatus)
+    ['assigned', 'out_for_delivery'].includes(order.deliveryStatus)
   );
 
   const completedOrders = orders.filter(order => 
@@ -154,7 +154,6 @@ export function DeliveryList({ session }: DeliveryListProps) {
   const getDeliveryStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'assigned': return 'bg-blue-100 text-blue-800';
-      case 'picked_up': return 'bg-purple-100 text-purple-800';
       case 'out_for_delivery': return 'bg-orange-100 text-orange-800';
       case 'delivered': return 'bg-green-100 text-green-800';
       case 'failed': return 'bg-red-100 text-red-800';
@@ -170,8 +169,7 @@ export function DeliveryList({ session }: DeliveryListProps) {
 
   const getNextDeliveryStatus = useCallback((currentStatus: DriverOrder['deliveryStatus']) => {
     switch (currentStatus) {
-      case 'assigned': return 'picked_up';
-      case 'picked_up': return 'out_for_delivery';
+      case 'assigned': return 'out_for_delivery';
       case 'out_for_delivery': return 'delivered';
       default: return null;
     }

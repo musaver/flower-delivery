@@ -357,7 +357,7 @@ export const orders = mysqlTable("orders", {
   
   // Driver assignment fields
   assignedDriverId: varchar("assigned_driver_id", { length: 255 }), // Current assigned driver
-  deliveryStatus: varchar("delivery_status", { length: 30 }).default("pending"), // pending, assigned, picked_up, out_for_delivery, delivered, failed
+  deliveryStatus: varchar("delivery_status", { length: 30 }).default("pending"), // pending, assigned, out_for_delivery, delivered, failed
   
   // Loyalty points fields
   pointsToRedeem: int("points_to_redeem").default(0), // Points redeemed for this order
@@ -532,7 +532,7 @@ export const driverAssignments = mysqlTable("driver_assignments", {
   priority: varchar("priority", { length: 20 }).default("normal"), // low, normal, high, urgent
   
   // Delivery status tracking
-  deliveryStatus: varchar("delivery_status", { length: 30 }).default("assigned"), // assigned, picked_up, out_for_delivery, delivered, failed
+  deliveryStatus: varchar("delivery_status", { length: 30 }).default("assigned"), // assigned, out_for_delivery, delivered, failed
   pickedUpAt: datetime("picked_up_at"),
   outForDeliveryAt: datetime("out_for_delivery_at"),
   deliveredAt: datetime("delivered_at"),

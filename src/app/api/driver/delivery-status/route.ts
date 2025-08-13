@@ -18,7 +18,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Validate delivery status
-    const validStatuses = ['pending', 'assigned', 'picked_up', 'out_for_delivery', 'delivered', 'failed'];
+    const validStatuses = ['pending', 'assigned', 'out_for_delivery', 'delivered', 'failed'];
     if (!validStatuses.includes(deliveryStatus)) {
       return NextResponse.json(
         { success: false, error: 'Invalid delivery status' },
