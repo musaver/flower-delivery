@@ -3,13 +3,13 @@ import { db } from '@/lib/db';
 import { orders, orderItems, user, drivers, driverOrderRejections } from '@/lib/schema';
 import { eq, desc, isNull, sql, and, ne, notExists } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { getTravelTimeEstimate } from '@/lib/maps-utils';
+import { getTravelTimeEstimate, kmToMiles } from '@/lib/maps-utils';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
-    const radiusKm = parseInt(searchParams.get('radius') || '10'); // Default 10km radius
+    const radiusMiles = parseInt(searchParams.get('radius') || '6'); // Default 6 miles radius (approximately 10km)
 
     if (!userId) {
       return NextResponse.json(
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
         order: orders,
         customer: user,
         distance: sql<number>`(
-          6371 * acos(
+          3959 * acos(
             cos(radians(${driverLat})) * 
             cos(radians(${orders.shippingLatitude})) * 
             cos(radians(${orders.shippingLongitude}) - radians(${driverLng})) + 
@@ -93,14 +93,14 @@ export async function GET(req: NextRequest) {
           sql`${orders.shippingLongitude} IS NOT NULL`,
           // Haversine distance filter
           sql`(
-            6371 * acos(
+            3959 * acos(
               cos(radians(${driverLat})) * 
               cos(radians(${orders.shippingLatitude})) * 
               cos(radians(${orders.shippingLongitude}) - radians(${driverLng})) + 
               sin(radians(${driverLat})) * 
               sin(radians(${orders.shippingLatitude}))
             )
-          ) <= ${radiusKm}`,
+          ) <= ${radiusMiles}`,
           // Exclude orders previously rejected by this driver
           notExists(
             db.select().from(driverOrderRejections).where(
@@ -165,7 +165,7 @@ export async function GET(req: NextRequest) {
             latitude: orderData.order.shippingLatitude ? parseFloat(orderData.order.shippingLatitude.toString()) : undefined,
             longitude: orderData.order.shippingLongitude ? parseFloat(orderData.order.shippingLongitude.toString()) : undefined
           },
-          distance: Math.round(orderData.distance * 100) / 100, // Round to 2 decimal places
+          distance: Math.round(orderData.distance * 100) / 100, // Round to 2 decimal places (already in miles)
           travelTime: travelTime ? {
             duration: travelTime.duration,
             durationValue: travelTime.durationValue,
@@ -190,7 +190,7 @@ export async function GET(req: NextRequest) {
         latitude: driverLat,
         longitude: driverLng
       },
-      searchRadius: radiusKm,
+      searchRadius: radiusMiles,
       totalOrders: ordersWithItems.length
     });
 

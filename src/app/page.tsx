@@ -31,15 +31,28 @@ export default function Home() {
   // Check if user is a driver
   const isDriver = session?.user?.userType === 'driver';
 
-  // Fetch categories on component mount
+  // Reset loading state when user type changes to driver
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    if (isDriver) {
+      setLoading(false);
+      setCategories([]);
+      setProducts([]);
+    }
+  }, [isDriver]);
 
-  // Fetch products when category changes
+  // Fetch categories on component mount (only for non-driver users)
   useEffect(() => {
-    fetchProducts();
-  }, [selectedCategory]);
+    if (!isDriver) {
+      fetchCategories();
+    }
+  }, [isDriver]);
+
+  // Fetch products when category changes (only for non-driver users)
+  useEffect(() => {
+    if (!isDriver) {
+      fetchProducts();
+    }
+  }, [selectedCategory, isDriver]);
 
   const fetchCategories = async () => {
     try {
@@ -82,7 +95,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Header title="Green Valley Dispensary" showSearch notifications={2} />
+      <Header title="Store name" showSearch notifications={2} />
       
       <main className="container mx-auto px-4 py-6 flex-1 mb-6">
         {/* Driver Dashboard - Show Nearby Orders at top if user is a driver */}
@@ -90,62 +103,68 @@ export default function Home() {
           <div className="mb-6">
             <NearbyOrders userId={session.user.id} />
           </div>
+        )} 
+
+        {/* Categories - Only show for non-driver users */}
+        {!isDriver && (
+          <div className="flex gap-2 overflow-x-auto pb-4 mb-6">
+            {categories.map((category) => (
+              <Button
+                key={category.id}
+                variant={selectedCategory === category.slug ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategory(category.slug)}
+                className="whitespace-nowrap"
+              >
+                {category.name}
+                {category.productCount > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {category.productCount}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
         )}
 
-        {/* Categories - Always show for everyone */}
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-6">
-          {categories.map((category) => (
-            <Button
-              key={category.id}
-              variant={selectedCategory === category.slug ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedCategory(category.slug)}
-              className="whitespace-nowrap"
-            >
-              {category.name}
-              {category.productCount > 0 && (
-                <Badge variant="secondary" className="ml-2 text-xs">
-                  {category.productCount}
-                </Badge>
-              )}
-            </Button>
-          ))}
-        </div>
-
-        {/* Products Section - Always show for everyone */}
-        {/* Loading State */}
-        {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-card rounded-lg p-4 animate-pulse">
-                <div className="aspect-square bg-muted rounded-lg mb-4"></div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                  <div className="h-3 bg-muted rounded w-1/2"></div>
-                  <div className="h-6 bg-muted rounded w-1/4"></div>
-                </div>
+        {/* Products Section - Only show for non-driver users */}
+        {!isDriver && (
+          <>
+            {/* Loading State */}
+            {loading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="bg-card rounded-lg p-4 animate-pulse">
+                    <div className="aspect-square bg-muted rounded-lg mb-4"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted rounded w-3/4"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                      <div className="h-6 bg-muted rounded w-1/4"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* Products Grid */}
-        {!loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={handleAddToCart}
-              />
-            ))}
-          </div>
-        )}
+            {/* Products Grid */}
+            {!loading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onAddToCart={handleAddToCart}
+                  />
+                ))}
+              </div>
+            )}
 
-        {!loading && products.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No products found in this category.</p>
-          </div>
+            {!loading && products.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No products found in this category.</p>
+              </div>
+            )}
+          </>
         )}
       </main>
 

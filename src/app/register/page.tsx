@@ -131,7 +131,7 @@ export default function RegisterPage() {
   return (
     <>
     <div className="min-h-screen bg-background flex flex-col">
-      <Header title="Green Valley Dispensary" showSearch notifications={2} />
+      <Header title="Store name" showSearch notifications={2} />
       
 
 

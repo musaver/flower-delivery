@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateDisplay } from '@/components/ui/date-display';
+import { formatTimeAMPM } from '@/lib/maps-utils';
 
 interface OrderItem {
   id: string;

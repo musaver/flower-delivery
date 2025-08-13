@@ -8,8 +8,8 @@ import { SessionProvider } from "@/components/providers/SessionProvider"
 import { ChatProvider } from "@/contexts/ChatContext"
 
 export const metadata: Metadata = {
-  title: "Green Valley Dispensary",
-  description: "Premium cannabis delivery platform",
+  title: "Store name",
+  description: "Store description",
 };
 
 export default function RootLayout({

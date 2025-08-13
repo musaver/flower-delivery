@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatTimeAMPM } from '@/lib/maps-utils';
 
 interface OrderItem {
   id: string;
@@ -65,7 +66,7 @@ interface NearbyOrdersProps {
 export function NearbyOrders({ userId }: NearbyOrdersProps) {
   const [orders, setOrders] = useState<NearbyOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchRadius, setSearchRadius] = useState(10); // Default 10km
+  const [searchRadius, setSearchRadius] = useState(6); // Default 6 miles (approximately 10km)
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -207,7 +208,7 @@ export function NearbyOrders({ userId }: NearbyOrdersProps) {
                 max="50"
                 className="w-16 h-8"
               />
-              <span className="text-sm text-muted-foreground">km</span>
+              <span className="text-sm text-muted-foreground">mi</span>
             </div>
           </div>
         </CardTitle>
@@ -218,7 +219,7 @@ export function NearbyOrders({ userId }: NearbyOrdersProps) {
             <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">No nearby orders</h3>
             <p className="text-muted-foreground">
-              There are no orders within {searchRadius}km of your current location.
+              There are no orders within {searchRadius} miles of your current location.
             </p>
             <Button
               variant="outline"
@@ -268,25 +269,25 @@ export function NearbyOrders({ userId }: NearbyOrdersProps) {
                               <>
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-4 w-4 text-green-500" />
-                                  <span className="font-medium">{order.distance}km away</span>
+                                  <span className="font-medium">{order.distance.toFixed(1)} mi away</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Timer className="h-4 w-4 text-blue-500" />
                                   <span className="text-blue-600 font-medium">{order.travelTime.duration} drive</span>
                                 </div>
                                 <div className="flex items-center gap-1 text-xs bg-blue-50 px-2 py-1 rounded">
-                                  <span className="text-blue-700">ETA: {new Date(order.travelTime.estimatedArrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span className="text-blue-700">ETA: {formatTimeAMPM(new Date(order.travelTime.estimatedArrivalTime))}</span>
                                 </div>
                               </>
                             ) : (
                               <>
                                 <div className="flex items-center gap-1">
                                   <MapPin className="h-4 w-4" />
-                                  <span>{order.distance}km away</span>
+                                  <span>{order.distance.toFixed(1)} mi away</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-4 w-4" />
-                                  <span>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span>{formatTimeAMPM(new Date(order.createdAt))}</span>
                                 </div>
                               </>
                             )}
