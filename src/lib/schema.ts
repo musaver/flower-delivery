@@ -501,6 +501,7 @@ export const drivers = mysqlTable("drivers", {
   baseLongitude: decimal("base_longitude", { precision: 11, scale: 8 }),
   currentLatitude: decimal("current_latitude", { precision: 10, scale: 8 }), // Current location
   currentLongitude: decimal("current_longitude", { precision: 11, scale: 8 }),
+  currentAddress: varchar("current_address", { length: 500 }), // Current location address
   
   // Status and availability
   status: varchar("status", { length: 20 }).default("offline"), // available, busy, offline
@@ -1092,5 +1093,27 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
   sender: one(user, {
     fields: [chatMessages.senderId],
     references: [user.id],
+  }),
+}));
+
+// Driver Order Rejections - track which orders drivers have rejected
+export const driverOrderRejections = mysqlTable("driver_order_rejections", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  driverId: varchar("driver_id", { length: 255 }).notNull(), // Reference to drivers table
+  orderId: varchar("order_id", { length: 255 }).notNull(), // Reference to orders table
+  rejectedAt: datetime("rejected_at").default(sql`CURRENT_TIMESTAMP`),
+  reason: text("reason"), // Optional reason for rejection
+  createdAt: datetime("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Driver Order Rejections Relations
+export const driverOrderRejectionsRelations = relations(driverOrderRejections, ({ one }) => ({
+  driver: one(drivers, {
+    fields: [driverOrderRejections.driverId],
+    references: [drivers.id],
+  }),
+  order: one(orders, {
+    fields: [driverOrderRejections.orderId],
+    references: [orders.id],
   }),
 }));

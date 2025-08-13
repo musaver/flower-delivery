@@ -20,17 +20,18 @@ export function QuickActions() {
         <CardTitle>Quick Actions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Button variant="outline" className="w-full justify-start gap-3">
+        
+        <Button variant="outline" className="w-full justify-start gap-3 hidden">
           <Phone className="h-4 w-4" />
           Contact Support
         </Button>
         
-        <Button variant="outline" className="w-full justify-start gap-3">
+        <Button variant="outline" className="w-full justify-start gap-3 hidden">
           <MessageCircle className="h-4 w-4" />
           Live Chat
         </Button>
         
-        <Separator />
+        <Separator className="hidden" />
         
         <Button 
           variant="outline" 

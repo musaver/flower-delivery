@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Footer } from '@/components/layout/Footer';
 import { ProductCard } from '@/components/products/ProductCard';
+import { NearbyOrders } from '@/components/driver/NearbyOrders';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Product } from '@/types';
@@ -19,11 +21,15 @@ interface Category {
 }
 
 export default function Home() {
+  const { data: session } = useSession();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const { addToCartWithToast, state } = useCart();
+
+  // Check if user is a driver
+  const isDriver = session?.user?.userType === 'driver';
 
   // Fetch categories on component mount
   useEffect(() => {
@@ -79,7 +85,14 @@ export default function Home() {
       <Header title="Green Valley Dispensary" showSearch notifications={2} />
       
       <main className="container mx-auto px-4 py-6 flex-1 mb-6">
-        {/* Categories */}
+        {/* Driver Dashboard - Show Nearby Orders at top if user is a driver */}
+        {isDriver && session?.user?.id && (
+          <div className="mb-6">
+            <NearbyOrders userId={session.user.id} />
+          </div>
+        )}
+
+        {/* Categories - Always show for everyone */}
         <div className="flex gap-2 overflow-x-auto pb-4 mb-6">
           {categories.map((category) => (
             <Button
@@ -99,6 +112,7 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Products Section - Always show for everyone */}
         {/* Loading State */}
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

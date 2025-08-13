@@ -203,7 +203,7 @@ export default function ProductDetails() {
           <Button
             size="icon"
             variant="secondary"
-            className="absolute top-4 right-4"
+            className="absolute top-4 right-4 hidden"
             onClick={() => handleShare()}
           >
             <Share2 className="h-4 w-4" />
@@ -244,7 +244,7 @@ export default function ProductDetails() {
                 {!product.inStock && <Badge variant="destructive">Out of Stock</Badge>}
               </div>
               <h1 className="text-2xl font-bold mb-2">{product.name}</h1>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4 hidden">
                 <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-primary text-primary" />
                   <span>4.8 (24 reviews)</span>
@@ -339,7 +339,7 @@ export default function ProductDetails() {
             </Card>
           )}
 
-          {/* Grow Info */}
+          {/* Grow Info 
           <Card>
             <CardContent className="pt-6">
               <h3 className="font-semibold mb-3">Grow Information</h3>
@@ -361,9 +361,9 @@ export default function ProductDetails() {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </Card>*/}
 
-          {/* Share Options */}
+          {/* Share Options 
           <Card>
             <CardContent className="pt-6">
               <h3 className="font-semibold mb-3">Share this product</h3>
@@ -406,7 +406,7 @@ export default function ProductDetails() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+          </Card>*/}
 
           {/* Add to Cart */}
           <Card>

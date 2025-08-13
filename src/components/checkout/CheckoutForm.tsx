@@ -260,7 +260,7 @@ export function CheckoutForm({ total, onSubmit }: CheckoutFormProps) {
         </CardContent>
       </Card>
 
-      {/* Order Notes */}
+      {/* Order Notes 
       <Card>
         <CardHeader>
           <CardTitle>Order Notes (Optional)</CardTitle>
@@ -273,7 +273,7 @@ export function CheckoutForm({ total, onSubmit }: CheckoutFormProps) {
             rows={3}
           />
         </CardContent>
-      </Card>
+      </Card>*/}
 
       {/* Loyalty Points Redemption */}
       {!loadingLoyalty && loyaltySettings.enabled && session?.user?.id && customerPoints.availablePoints > 0 && (

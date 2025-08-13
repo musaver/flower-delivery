@@ -321,7 +321,7 @@ export function SettingsClient({ session }: SettingsClientProps) {
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* Notification Settings 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -376,7 +376,7 @@ export function SettingsClient({ session }: SettingsClientProps) {
               />
             </div>
           </CardContent>
-        </Card>
+        </Card>*/}
 
         {/* Logout */}
         <Card>

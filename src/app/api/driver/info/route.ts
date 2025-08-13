@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
         baseLocation: drivers.baseLocation,
         currentLatitude: drivers.currentLatitude,
         currentLongitude: drivers.currentLongitude,
+        currentAddress: drivers.currentAddress,
       })
       .from(drivers)
       .innerJoin(user, eq(drivers.userId, user.id))
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
         baseLocation: driver.baseLocation || '',
         currentLatitude: driver.currentLatitude ? parseFloat(driver.currentLatitude.toString()) : undefined,
         currentLongitude: driver.currentLongitude ? parseFloat(driver.currentLongitude.toString()) : undefined,
+        currentAddress: driver.currentAddress || '',
       }
     });
 

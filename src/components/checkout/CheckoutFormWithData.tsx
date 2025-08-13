@@ -357,6 +357,8 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
               id="name"
               required
               value={customerInfo.name}
+              className="bg-gray-100 cursor-not-allowed"
+              readOnly
               onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
               placeholder="John Doe"
             />
@@ -369,8 +371,9 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
                 id="email"
                 type="email"
                 required
-                className="pl-10"
+                className="pl-10 bg-gray-100 cursor-not-allowed"
                 value={customerInfo.email}
+                readOnly
                 onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
                 placeholder="john@example.com"
               />
@@ -384,8 +387,9 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
                 id="phone"
                 type="tel"
                 required
-                className="pl-10"
+                className="pl-10 bg-gray-100 cursor-not-allowed"
                 value={customerInfo.phone}
+                readOnly
                 onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
                 placeholder="+1 (555) 123-4567"
               />
@@ -520,7 +524,7 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
         </CardContent>
       </Card>
 
-      {/* Order Notes */}
+      {/* Order Notes 
       <Card>
         <CardHeader>
           <CardTitle>Order Notes (Optional)</CardTitle>
@@ -532,7 +536,7 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
             placeholder="Any special instructions for your order..."
           />
         </CardContent>
-      </Card>
+      </Card>*/}
 
       {/* Submit Button */}
       <Button type="submit" className="w-full" size="lg">

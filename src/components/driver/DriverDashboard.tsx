@@ -29,6 +29,7 @@ interface DriverInfo {
   baseLocation: string;
   currentLatitude?: number;
   currentLongitude?: number;
+  currentAddress?: string;
 }
 
 interface DriverDashboardProps {
@@ -107,7 +108,8 @@ export function DriverDashboard({ session }: DriverDashboardProps) {
         setDriverInfo(prev => prev ? {
           ...prev,
           currentLatitude: location.latitude,
-          currentLongitude: location.longitude
+          currentLongitude: location.longitude,
+          currentAddress: location.address
         } : null);
         // Don't hide the picker immediately - let user see the updated location
         // setShowLocationPicker(false);
@@ -167,6 +169,24 @@ export function DriverDashboard({ session }: DriverDashboardProps) {
               </Badge>
             </div>
             
+            {/* Current Location Display */}
+            {driverInfo?.currentAddress && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-blue-700 text-sm">Current Location</div>
+                    <div className="text-blue-600 text-sm">{driverInfo.currentAddress}</div>
+                    {driverInfo.currentLatitude && driverInfo.currentLongitude && (
+                      <div className="text-blue-500 text-xs mt-1">
+                        {parseFloat(driverInfo.currentLatitude.toString()).toFixed(6)}, {parseFloat(driverInfo.currentLongitude.toString()).toFixed(6)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <Label htmlFor="availability">Available for Orders</Label>
@@ -196,7 +216,10 @@ export function DriverDashboard({ session }: DriverDashboardProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                Update Your Location
+                <div className="flex items-center gap-2">
+                  <Navigation className="h-5 w-5" />
+                  Update Your Location
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
@@ -207,19 +230,33 @@ export function DriverDashboard({ session }: DriverDashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                <div className="font-medium text-yellow-700 mb-1">📍 Why update your location?</div>
+                <div className="text-yellow-600 text-xs">
+                  Keeping your location updated helps us show you nearby orders and provides accurate delivery estimates to customers.
+                </div>
+              </div>
+              
               {driverInfo?.currentLatitude && driverInfo?.currentLongitude && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
                   <div className="font-medium text-green-700 mb-1 flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Current Location Set
+                    <CheckCircle className="h-4 w-4" />
+                    Location Successfully Set
                   </div>
+                  {driverInfo.currentAddress && (
+                    <div className="text-green-600 text-xs mb-1">
+                      Address: {driverInfo.currentAddress}
+                    </div>
+                  )}
                   <div className="text-green-600 text-xs">
                     Coordinates: {parseFloat(driverInfo.currentLatitude.toString()).toFixed(6)}, {parseFloat(driverInfo.currentLongitude.toString()).toFixed(6)}
                   </div>
                 </div>
               )}
+              
               <GoogleMapsLocationPicker
                 onLocationSelect={updateLocation}
+                initialAddress={driverInfo?.currentAddress}
                 initialLatitude={driverInfo?.currentLatitude ? parseFloat(driverInfo.currentLatitude.toString()) : undefined}
                 initialLongitude={driverInfo?.currentLongitude ? parseFloat(driverInfo.currentLongitude.toString()) : undefined}
                 height="300px"

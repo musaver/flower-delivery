@@ -36,6 +36,7 @@ export async function PUT(req: NextRequest) {
       .set({ 
         currentLatitude: latitude.toString(),
         currentLongitude: longitude.toString(),
+        currentAddress: address || `${latitude}, ${longitude}`,
         updatedAt: new Date()
       })
       .where(eq(drivers.userId, userId));

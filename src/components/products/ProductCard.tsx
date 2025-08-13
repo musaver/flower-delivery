@@ -63,7 +63,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
             </p>
           </div>
 
-          <div className="flex justify-between items-center text-sm">
+          <div className="flex justify-between items-center text-sm hidden">
             <div className="flex gap-2">
               <Badge variant="outline">THC: {product.thc}%</Badge>
               <Badge variant="outline">CBD: {product.cbd}%</Badge>
