@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { products, categories, productInventory, productTags, tags, tagGroups } from '@/lib/schema';
+import { products, categories, productInventory, productTags, tags, tagGroups, productVariants } from '@/lib/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import { normalizeProductImages, normalizeProductTags } from '@/utils/jsonUtils';
 
 export async function GET(
   req: NextRequest,
@@ -30,6 +31,7 @@ export async function GET(
           cbd: products.cbd,
           isActive: products.isActive,
           isFeatured: products.isFeatured,
+          productType: products.productType,
           tags: products.tags,
           difficulty: products.difficulty,
           floweringTime: products.floweringTime,
@@ -44,10 +46,19 @@ export async function GET(
           quantity: productInventory.quantity,
           availableQuantity: productInventory.availableQuantity,
         },
+        // Get variant stock information for variable products
+        variantStock: {
+          totalVariants: sql<number>`COUNT(CASE WHEN ${products.productType} = 'variable' AND ${productVariants.isActive} = 1 THEN 1 END)`,
+          outOfStockVariants: sql<number>`COUNT(CASE WHEN ${products.productType} = 'variable' AND ${productVariants.isActive} = 1 AND ${productVariants.outOfStock} = 1 THEN 1 END)`,
+        },
       })
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .leftJoin(productInventory, eq(productInventory.productId, products.id))
+      .leftJoin(productVariants, and(
+        eq(productVariants.productId, products.id),
+        eq(productVariants.isActive, true)
+      ))
       .where(and(eq(products.id, productId), eq(products.isActive, true)))
       .groupBy(products.id, categories.id)
       .limit(1);
@@ -125,58 +136,24 @@ export async function GET(
       });
     });
 
-    // Parse images
-    try {
-      if (item.product.images) {
-        let imageData = item.product.images;
-        
-        // Handle string data (which is common from database)
-        if (typeof imageData === 'string') {
-          // This handles the double-encoded JSON format from database
-          try {
-            // First, parse the outer quotes
-            imageData = JSON.parse(imageData);
-            // Then parse the inner JSON array
-            if (typeof imageData === 'string') {
-              imageData = JSON.parse(imageData);
-            }
-          } catch (e) {
-            // If parsing fails, maybe it's just a URL string
-            if (typeof imageData === 'string' && (imageData.includes('http') || imageData.includes('/'))) {
-              // Extract URL from malformed JSON
-              const urlMatch = imageData.match(/https?:\/\/[^\\"]+/);
-              if (urlMatch) {
-                imageData = [urlMatch[0]];
-              } else {
-                imageData = [];
-              }
-            } else {
-              imageData = [];
-            }
-          }
-        }
-        
-        images = Array.isArray(imageData) ? imageData : (imageData ? [imageData] : []);
-      }
-    } catch (e) {
-      console.warn('Failed to parse product images:', e);
-      images = [];
+    // Parse images using the normalization utility
+    images = normalizeProductImages(item.product.images);
+
+    // Parse legacy tags using the normalization utility
+    legacyTags = normalizeProductTags(item.product.tags);
+
+    // Calculate stock status based on product type
+    let inStock = false;
+    if (item.product.productType === 'variable') {
+      // For variable products: in stock if has variants and not ALL variants are out of stock
+      const hasVariants = (item.variantStock?.totalVariants || 0) > 0;
+      const allVariantsOutOfStock = hasVariants && 
+        item.variantStock?.totalVariants === item.variantStock?.outOfStockVariants;
+      inStock = hasVariants && !allVariantsOutOfStock;
+    } else {
+      // For simple products: use inventory quantity
+      inStock = (item.inventory?.availableQuantity || item.inventory?.quantity || 0) > 0;
     }
-
-    // Parse legacy tags (JSON field in products table)
-    try {
-      if (item.product.tags) {
-        const tagData = typeof item.product.tags === 'string' 
-          ? JSON.parse(item.product.tags) 
-          : item.product.tags;
-        legacyTags = Array.isArray(tagData) ? tagData : [];
-      }
-    } catch (e) {
-      console.warn('Failed to parse product legacy tags:', e);
-      legacyTags = [];
-    }
-
-
 
     // Transform the data
     const transformedProduct = {
@@ -186,15 +163,16 @@ export async function GET(
       categorySlug: item.category?.slug || 'uncategorized',
       price: parseFloat(item.product.price?.toString() || '0'),
       comparePrice: item.product.comparePrice ? parseFloat(item.product.comparePrice.toString()) : null,
-      image: images[0] || '/placeholder-product.jpg', // First image or placeholder
+      image: images[0] || null, // First image or null for placeholder
       images: images,
       description: item.product.description || item.product.shortDescription || '',
       shortDescription: item.product.shortDescription || '',
       thc: parseFloat(item.product.thc?.toString() || '0'),
       cbd: parseFloat(item.product.cbd?.toString() || '0'),
       strain: legacyTags.find(tag => ['indica', 'sativa', 'hybrid'].includes(tag.toLowerCase())) || 'hybrid',
-      inStock: (item.inventory?.availableQuantity || item.inventory?.quantity || 0) > 0,
+      inStock: inStock,
       isFeatured: item.product.isFeatured || false,
+      productType: item.product.productType || 'simple',
       tags: legacyTags,
       // Dynamic tags organized by group
       effects: tagsByGroup['effects'] || tagsByGroup['effect'] || [],

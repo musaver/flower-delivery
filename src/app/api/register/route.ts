@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendWelcomeEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
-  const { email, password, name } = await req.json();
+  const { email, password, name, note } = await req.json();
 
   if (!email || !password) {
     return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
@@ -33,18 +33,38 @@ export async function POST(req: Request) {
   // Check if user already exists
   const [existingUser] = await db.select().from(user).where(eq(user.email, email));
   if (existingUser) {
-    //return NextResponse.json({ error: 'User already exists.' }, { status: 409 });
-    return NextResponse.json({ success: true, message: 'User logged in successfully.' });
+    // Check user status
+    if (existingUser.status === 'pending') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account is pending approval. Please wait for admin approval before logging in.',
+        requiresApproval: true 
+      }, { status: 403 });
+    } else if (existingUser.status === 'suspended') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account has been suspended. Please contact support.',
+        suspended: true 
+      }, { status: 403 });
+    } else if (existingUser.status === 'approved') {
+      return NextResponse.json({ success: true, message: 'User logged in successfully.' });
+    }
   } else {
 
-  // Insert new user
+  // Insert new user with pending status
   await db.insert(user).values({
     id: uuidv4(),
     email,
     name: name || null,
+    note: note || null,
+    status: 'pending',
   });
 
   await sendWelcomeEmail(email, name || undefined);
-  return NextResponse.json({ success: true, message: 'User registered successfully.' });
+  return NextResponse.json({ 
+    success: true, 
+    message: 'Account created successfully! Your account is pending approval. You will be able to login once an admin approves your account.',
+    requiresApproval: true 
+  });
   }
 }

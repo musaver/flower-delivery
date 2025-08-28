@@ -135,8 +135,10 @@ export async function processCheckout(formData: FormData) {
       total: parseFloat(formData.get('total') as string),
       subtotal: parseFloat(formData.get('subtotal') as string),
       paymentMethod: formData.get('paymentMethod') as string,
+      orderType: formData.get('orderType') as string || 'delivery',
       customerInfo: JSON.parse(formData.get('customerInfo') as string),
-      deliveryAddress: JSON.parse(formData.get('deliveryAddress') as string),
+      deliveryAddress: formData.get('deliveryAddress') ? JSON.parse(formData.get('deliveryAddress') as string) : null,
+      pickupLocationId: formData.get('pickupLocationId') as string || null,
       orderNotes: formData.get('orderNotes') as string || '',
       pointsToRedeem: parseInt(formData.get('pointsToRedeem') as string || '0'),
       pointsDiscountAmount: parseFloat(formData.get('pointsDiscountAmount') as string || '0')
@@ -224,6 +226,10 @@ export async function processCheckout(formData: FormData) {
       totalAmount: finalTotal.toString(),
       currency: 'USD',
       
+      // Order type and pickup location fields
+      orderType: checkoutData.orderType || 'delivery',
+      pickupLocationId: checkoutData.pickupLocationId || null,
+      
       // Driver assignment fields
       assignedDriverId: null,
       deliveryStatus: 'pending',
@@ -232,33 +238,43 @@ export async function processCheckout(formData: FormData) {
       pointsToRedeem: checkoutData.pointsToRedeem,
       pointsDiscountAmount: checkoutData.pointsDiscountAmount.toString(),
       
-      // Addresses
+      // Addresses (only for delivery orders)
       billingFirstName: checkoutData.customerInfo.name?.split(' ')[0] || null,
       billingLastName: checkoutData.customerInfo.name?.split(' ').slice(1).join(' ') || null,
-      billingAddress1: checkoutData.deliveryAddress.street || null,
-      billingCity: checkoutData.deliveryAddress.city || null,
-      billingState: checkoutData.deliveryAddress.state || null,
-      billingPostalCode: checkoutData.deliveryAddress.zipCode || null,
+      billingAddress1: checkoutData.deliveryAddress?.street || null,
+      billingCity: checkoutData.deliveryAddress?.city || null,
+      billingState: checkoutData.deliveryAddress?.state || null,
+      billingPostalCode: checkoutData.deliveryAddress?.zipCode || null,
       billingCountry: 'US',
       
       shippingFirstName: checkoutData.customerInfo.name?.split(' ')[0] || null,
       shippingLastName: checkoutData.customerInfo.name?.split(' ').slice(1).join(' ') || null,
-      shippingAddress1: checkoutData.deliveryAddress.street || null,
-      shippingCity: checkoutData.deliveryAddress.city || null,
-      shippingState: checkoutData.deliveryAddress.state || null,
-      shippingPostalCode: checkoutData.deliveryAddress.zipCode || null,
+      shippingAddress1: checkoutData.deliveryAddress?.street || null,
+      shippingCity: checkoutData.deliveryAddress?.city || null,
+      shippingState: checkoutData.deliveryAddress?.state || null,
+      shippingPostalCode: checkoutData.deliveryAddress?.zipCode || null,
       shippingCountry: 'US',
-      shippingLatitude: checkoutData.deliveryAddress.latitude || null,
-      shippingLongitude: checkoutData.deliveryAddress.longitude || null,
+      shippingLatitude: checkoutData.deliveryAddress?.latitude || null,
+      shippingLongitude: checkoutData.deliveryAddress?.longitude || null,
       
       notes: checkoutData.orderNotes || null,
-      deliveryInstructions: checkoutData.deliveryAddress.instructions || null,
+      deliveryInstructions: checkoutData.deliveryAddress?.instructions || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
     // Create order items
     for (const item of checkoutData.items) {
+      // Prepare variation attributes for storage
+      let addonData = null;
+      if (item.product?.selectedAttributes || item.addons) {
+        addonData = {
+          selectedAttributes: item.product?.selectedAttributes || {},
+          variantSku: item.product?.variantSku || null,
+          addons: item.addons || []
+        };
+      }
+
       await db.insert(orderItems).values({
         id: uuidv4(),
         orderId,
@@ -266,14 +282,14 @@ export async function processCheckout(formData: FormData) {
         variantId: item.variantId || null,
         productName: item.product?.name || item.name,
         variantTitle: item.variantTitle || null,
-        sku: item.sku || null,
+        sku: item.sku || item.product?.variantSku || null,
         quantity: item.quantity || 1,
         price: (item.product?.price || item.price || 0).toString(),
         costPrice: null,
         totalPrice: ((item.product?.price || item.price || 0) * (item.quantity || 1)).toString(),
         totalCost: null,
-        productImage: item.product?.images?.[0] || null,
-        addons: item.addons ? JSON.stringify(item.addons) : null,
+        productImage: item.product?.images?.[0] || item.product?.image || null,
+        addons: addonData ? JSON.stringify(addonData) : null,
         createdAt: new Date(),
       });
     }

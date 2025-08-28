@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Trash2, Plus, Minus } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -10,8 +11,35 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useCart } from '@/contexts/CartContext';
 
 export default function CartPage() {
+  const { data: session, status } = useSession();
   const { state, removeFromCart, updateQuantity } = useCart();
   const router = useRouter();
+
+  // Redirect to register if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return; // Still loading
+    if (!session) {
+      window.location.href = '/register';
+      return;
+    }
+  }, [session, status]);
+
+  // Show loading while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if not authenticated
+  if (!session) {
+    return null;
+  }
 
   const updateItemQuantity = (productId: string, newQuantity: number) => {
     if (newQuantity === 0) {
@@ -94,6 +122,22 @@ export default function CartPage() {
                       <div>
                         <h3 className="font-semibold">{item.product.name}</h3>
                         <p className="text-sm text-muted-foreground">{item.product.category}</p>
+                        
+                        {/* Show selected variant information */}
+                        {item.product.selectedAttributes && Object.keys(item.product.selectedAttributes).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {Object.entries(item.product.selectedAttributes).map(([key, value]) => (
+                              <span key={key} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+                                {key}: {value}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Show variant SKU if available */}
+                        {item.product.variantSku && (
+                          <p className="text-xs text-muted-foreground mt-1">SKU: {item.product.variantSku}</p>
+                        )}
                       </div>
                       <Button
                         variant="ghost"

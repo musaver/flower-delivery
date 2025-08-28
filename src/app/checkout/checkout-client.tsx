@@ -28,12 +28,13 @@ interface CustomerPoints {
 
 export interface CheckoutData {
   paymentMethod: 'cod';
+  orderType: 'delivery' | 'pickup';
   customerInfo: {
     name: string;
     email: string;
     phone: string;
   };
-  deliveryAddress: {
+  deliveryAddress?: {
     street: string;
     city: string;
     state: string;
@@ -42,6 +43,7 @@ export interface CheckoutData {
     longitude?: number;
     instructions?: string;
   };
+  pickupLocationId?: string;
   orderNotes: string;
   pointsToRedeem?: number;
   pointsDiscountAmount?: number;
@@ -80,8 +82,14 @@ export function CheckoutClientPage({ loyaltySettings, customerPoints, user }: Ch
       formData.append('total', total.toString());
       formData.append('subtotal', subtotal.toString());
       formData.append('paymentMethod', data.paymentMethod);
+      formData.append('orderType', data.orderType);
       formData.append('customerInfo', JSON.stringify(data.customerInfo));
-      formData.append('deliveryAddress', JSON.stringify(data.deliveryAddress));
+      if (data.deliveryAddress) {
+        formData.append('deliveryAddress', JSON.stringify(data.deliveryAddress));
+      }
+      if (data.pickupLocationId) {
+        formData.append('pickupLocationId', data.pickupLocationId);
+      }
       formData.append('orderNotes', data.orderNotes);
       formData.append('pointsToRedeem', (data.pointsToRedeem || 0).toString());
       formData.append('pointsDiscountAmount', (data.pointsDiscountAmount || 0).toString());
@@ -108,7 +116,8 @@ export function CheckoutClientPage({ loyaltySettings, customerPoints, user }: Ch
           paymentMethod: data.paymentMethod,
           orderNotes: data.orderNotes,
           customerInfo: data.customerInfo,
-          deliveryAddress: data.deliveryAddress
+          deliveryAddress: data.deliveryAddress,
+          items: state.items // Include cart items with variation data
         };
         
         localStorage.setItem('lastOrder', JSON.stringify(orderData));

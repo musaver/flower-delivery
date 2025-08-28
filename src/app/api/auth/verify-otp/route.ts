@@ -33,24 +33,40 @@ export async function GET(req: Request) {
   // Check if user already exists
   const [existingUser] = await db.select().from(user).where(eq(user.email, email));
   if (existingUser) {
-    return NextResponse.json({ 
-      success: true, 
-      message: 'User logged in successfully.',
-      redirectUrl: '/dashboard'
-    });
+    // Check user status
+    if (existingUser.status === 'pending') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account is pending approval. Please wait for admin approval before logging in.',
+        requiresApproval: true 
+      }, { status: 403 });
+    } else if (existingUser.status === 'suspended') {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Your account has been suspended. Please contact support.',
+        suspended: true 
+      }, { status: 403 });
+    } else if (existingUser.status === 'approved') {
+      return NextResponse.json({ 
+        success: true, 
+        message: 'User logged in successfully.',
+        redirectUrl: '/dashboard'
+      });
+    }
   } else {
-    // Insert new user
+    // Insert new user with pending status
     await db.insert(user).values({
       id: uuidv4(),
       email,
+      status: 'pending',
     });
 
     await sendWelcomeEmail(email,  undefined);
 
     return NextResponse.json({ 
       success: true, 
-      message: 'User registered successfully.',
-      redirectUrl: '/dashboard'
+      message: 'Account created successfully! Your account is pending approval. You will be able to login once an admin approves your account.',
+      requiresApproval: true
     });
   }
 }

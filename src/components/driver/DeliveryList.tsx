@@ -17,12 +17,17 @@ interface OrderItem {
   quantity: number;
   price: number;
   totalPrice: number;
+  // Variation information
+  selectedAttributes?: { [key: string]: string };
+  variantSku?: string;
+  productImage?: string;
 }
 
 interface DriverOrder {
   id: string;
   orderNumber: string;
   userId: string;
+  orderType?: 'delivery' | 'pickup';
   items: OrderItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled';
@@ -38,6 +43,12 @@ interface DriverOrder {
     instructions?: string;
     latitude?: number;
     longitude?: number;
+  };
+  pickupLocation?: {
+    id: string;
+    name: string;
+    address: string;
+    instructions?: string;
   };
   createdAt: string;
   eta?: string;
@@ -325,17 +336,38 @@ export function DeliveryList({ session }: DeliveryListProps) {
           )}
         </div>
 
-        {/* Delivery Address */}
+        {/* Address - Delivery or Pickup Location */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">Delivery Address</span>
+            <span className="font-medium">
+              {order.orderType === 'pickup' ? 'Pickup Location' : 'Delivery Address'}
+            </span>
+            {order.orderType === 'pickup' && (
+              <Badge variant="outline" className="text-xs">
+                Pickup
+              </Badge>
+            )}
           </div>
           <div className="text-sm text-muted-foreground pl-6">
-            <p>{order.deliveryAddress.street}</p>
-            <p>{order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}</p>
-            {order.deliveryAddress.instructions && (
-              <p className="mt-1 text-xs italic">Instructions: {order.deliveryAddress.instructions}</p>
+            {order.orderType === 'pickup' && order.pickupLocation ? (
+              <>
+                <p className="font-medium">{order.pickupLocation.name}</p>
+                <p>{order.pickupLocation.address}</p>
+                {order.pickupLocation.instructions && (
+                  <p className="mt-1 text-xs italic text-blue-600">
+                    Instructions: {order.pickupLocation.instructions}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p>{order.deliveryAddress.street}</p>
+                <p>{order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}</p>
+                {order.deliveryAddress.instructions && (
+                  <p className="mt-1 text-xs italic">Instructions: {order.deliveryAddress.instructions}</p>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -343,11 +375,29 @@ export function DeliveryList({ session }: DeliveryListProps) {
         {/* Order Items */}
         <div className="space-y-2">
           <p className="text-sm font-medium">Items ({order.items.length})</p>
-          <div className="space-y-1">
+          <div className="space-y-2">
             {order.items.slice(0, 2).map((item) => (
-              <div key={item.id} className="flex justify-between text-sm">
-                <span>{item.quantity}x {item.productName}</span>
-                <span>${item.totalPrice.toFixed(2)}</span>
+              <div key={item.id} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>{item.quantity}x {item.productName}</span>
+                  <span>${item.totalPrice.toFixed(2)}</span>
+                </div>
+                
+                {/* Show selected variant information */}
+                {item.selectedAttributes && Object.keys(item.selectedAttributes).length > 0 && (
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {Object.entries(item.selectedAttributes).map(([key, value]) => (
+                      <span key={key} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+                        {key}: {value}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Show variant SKU if available */}
+                {item.variantSku && (
+                  <p className="text-xs text-muted-foreground ml-2">SKU: {item.variantSku}</p>
+                )}
               </div>
             ))}
             {order.items.length > 2 && (

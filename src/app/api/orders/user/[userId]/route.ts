@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { orders, orderItems, user, drivers } from '@/lib/schema';
+import { orders, orderItems, user, drivers, pickupLocations } from '@/lib/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { deepParseJSON, safeJsonParse } from '@/utils/jsonUtils';
 
 export async function GET(
   req: NextRequest,
@@ -17,14 +18,18 @@ export async function GET(
       );
     }
 
-    // Get user orders with order items
+    // Get user orders with order items, pickup locations, and assigned drivers
     const userOrders = await db
       .select({
         order: orders,
-        items: orderItems
+        items: orderItems,
+        pickupLocation: pickupLocations,
+        assignedDriver: drivers
       })
       .from(orders)
       .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .leftJoin(pickupLocations, eq(orders.pickupLocationId, pickupLocations.id))
+      .leftJoin(drivers, eq(orders.assignedDriverId, drivers.id))
       .where(eq(orders.userId, userId))
       .orderBy(desc(orders.createdAt));
 
@@ -34,11 +39,15 @@ export async function GET(
     userOrders.forEach(row => {
       const order = row.order;
       const item = row.items;
+      const pickupLocation = row.pickupLocation;
+      const assignedDriver = row.assignedDriver;
       
       if (!ordersMap.has(order.id)) {
         ordersMap.set(order.id, {
           ...order,
-          items: []
+          items: [],
+          pickupLocation: pickupLocation,
+          assignedDriver: assignedDriver
         });
       }
       
@@ -100,26 +109,76 @@ export async function GET(
           id: order.id,
           orderNumber: order.orderNumber,
           userId: order.userId,
-          items: order.items.map((item: any) => ({
-            id: item.id,
-            productName: item.productName,
-            quantity: item.quantity,
-            price: parseFloat(item.price.toString()),
-            totalPrice: parseFloat(item.totalPrice.toString())
-          })),
+          items: order.items.map((item: any) => {
+            // Parse stored variation data from addons JSON field
+            let selectedAttributes = {};
+            let variantSku = null;
+            
+            console.log('Processing item:', item.id, 'productName:', item.productName);
+            console.log('Raw addons data:', item.addons);
+            console.log('Addons type:', typeof item.addons);
+            
+            if (item.addons) {
+              try {
+                // Use robust JSON parsing
+                const addonData = deepParseJSON(item.addons);
+                console.log('Parsed addon data:', addonData);
+                
+                if (addonData && typeof addonData === 'object') {
+                  if (addonData.selectedAttributes && typeof addonData.selectedAttributes === 'object') {
+                    selectedAttributes = addonData.selectedAttributes;
+                    console.log('Found selectedAttributes:', selectedAttributes);
+                  }
+                  if (addonData.variantSku) {
+                    variantSku = addonData.variantSku;
+                    console.log('Found variantSku:', variantSku);
+                  }
+                }
+              } catch (error) {
+                console.error('Error parsing variation data for item:', item.id, error);
+                console.error('Raw addons data:', item.addons);
+              }
+            } else {
+              console.log('No addons data found for item:', item.id);
+            }
+
+            const finalItem = {
+              id: item.id,
+              productName: item.productName,
+              quantity: item.quantity,
+              price: parseFloat(item.price.toString()),
+              totalPrice: parseFloat(item.totalPrice.toString()),
+              selectedAttributes: Object.keys(selectedAttributes).length > 0 ? selectedAttributes : undefined,
+              variantSku: variantSku || item.sku || undefined,
+              productImage: item.productImage || undefined
+            };
+            
+            console.log('Final item object:', finalItem);
+            console.log('Has selectedAttributes?', !!finalItem.selectedAttributes);
+            console.log('selectedAttributes count:', finalItem.selectedAttributes ? Object.keys(finalItem.selectedAttributes).length : 0);
+            
+            return finalItem;
+          }),
           total: parseFloat(order.totalAmount.toString()),
           status: order.status,
+          orderType: order.orderType || 'delivery',
           deliveryStatus: order.deliveryStatus, // Include delivery status for button visibility
           paymentMethod: 'cod', // Default since paymentMethod field doesn't exist in schema
           paymentStatus: order.paymentStatus,
           orderNotes: order.notes,
-          deliveryAddress: {
+          deliveryAddress: order.orderType !== 'pickup' ? {
             street: order.shippingAddress1 || '',
             city: order.shippingCity || '',
             state: order.shippingState || '',
             zipCode: order.shippingPostalCode || '',
-            instructions: '' // Add this field to orders table if needed
-          },
+            instructions: order.deliveryInstructions || ''
+          } : undefined,
+          pickupLocation: order.orderType === 'pickup' && order.pickupLocation ? {
+            id: order.pickupLocation.id,
+            name: order.pickupLocation.name,
+            address: order.pickupLocation.address,
+            instructions: order.pickupLocation.instructions || ''
+          } : undefined,
           createdAt: order.createdAt.toISOString(),
           eta: order.deliveryTime || null,
           assignedDriver,

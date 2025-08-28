@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   await db.delete(verification_tokens).where(eq(verification_tokens.identifier, to));
   await db.insert(verification_tokens).values({ identifier: to, token: hashedToken, otp: hashedOtp, expires: expiresAt });
 
-  const emailMessage = `Your OTP is: ${otp}\nYour verification link is: ${verificationLink}`;
+  const emailMessage = `Your OTP is: ${otp}`;
 
   if (!to || !subject) {
     return NextResponse.json({ error: 'Missing required fields (to, subject)' }, { status: 400 });

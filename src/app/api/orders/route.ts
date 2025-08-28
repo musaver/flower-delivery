@@ -332,6 +332,16 @@ export async function POST(req: NextRequest) {
         console.warn(`Failed to get cost price for item ${productName}:`, error);
       }
 
+      // Prepare variation attributes for storage
+      let addonData = null;
+      if (item.product?.selectedAttributes || item.addons) {
+        addonData = {
+          selectedAttributes: item.product?.selectedAttributes || {},
+          variantSku: item.product?.variantSku || null,
+          addons: item.addons || []
+        };
+      }
+
       // Create order item
       await db.insert(orderItems).values({
         id: orderItemId,
@@ -340,14 +350,14 @@ export async function POST(req: NextRequest) {
         variantId: item.variantId || null,
         productName,
         variantTitle: item.variantTitle || null,
-        sku: item.sku || null,
+        sku: item.sku || item.product?.variantSku || null,
         quantity,
         price: price.toString(),
         costPrice: costPrice?.toString() || null,
         totalPrice: (price * quantity).toString(),
         totalCost: totalCost?.toString() || null,
-        productImage: item.product?.images?.[0] || null,
-        addons: item.addons ? JSON.stringify(item.addons) : null,
+        productImage: item.product?.images?.[0] || item.product?.image || null,
+        addons: addonData ? JSON.stringify(addonData) : null,
         createdAt: new Date(),
       });
 

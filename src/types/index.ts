@@ -9,6 +9,14 @@ export interface Product {
   cbd: number;
   strain: 'indica' | 'sativa' | 'hybrid';
   inStock: boolean;
+  // Price range information for variable products
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  isVariableProduct?: boolean;
+  // Optional variant information
+  variantId?: string;
+  variantSku?: string;
+  selectedAttributes?: { [key: string]: string };
 }
 
 export interface CartItem {

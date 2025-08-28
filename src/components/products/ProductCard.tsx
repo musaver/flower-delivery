@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react';
-import { Plus, Minus, ShoppingCart } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onAddToCart }: ProductCardProps) {
   const [quantity, setQuantity] = useState(1);
+  const [imageError, setImageError] = useState(false);
   const router = useRouter();
 
   const handleAddToCart = () => {
@@ -37,11 +38,18 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
         className="aspect-square relative overflow-hidden cursor-pointer"
         onClick={() => router.push(`/product/${product.id}`)}
       >
-        <img
-          src={product.image}
-          alt={product.name}
-          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-        />
+        {product.image && !imageError ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <Package className="w-16 h-16 text-muted-foreground/50" />
+          </div>
+        )}
         {!product.inStock && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <Badge variant="destructive">Out of Stock</Badge>
@@ -71,38 +79,70 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
           </div>
 
           <div className="flex justify-between items-center">
-            <span className="text-2xl font-bold text-primary">${product.price}</span>
+            <div>
+              <div className="text-2xl font-bold text-primary">
+                {product.isVariableProduct && product.minPrice && product.maxPrice ? (
+                  product.minPrice === product.maxPrice ? (
+                    `$${product.minPrice.toFixed(2)}`
+                  ) : (
+                    `$${product.minPrice.toFixed(2)} - $${product.maxPrice.toFixed(2)}`
+                  )
+                ) : (
+                  `$${product.price.toFixed(2)}`
+                )}
+              </div>
+              {product.isVariableProduct && product.minPrice && product.maxPrice && product.minPrice !== product.maxPrice && (
+                <div className="text-xs text-muted-foreground">Price varies by option</div>
+              )}
+            </div>
             
             {product.inStock && (
               <div className="flex items-center gap-2">
-                <div className="flex items-center border rounded-lg">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="px-3 py-1 text-sm font-medium">{quantity}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setQuantity(quantity + 1)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+                {/* Hide quantity selector and add to cart for variable products */}
+                {!product.isVariableProduct && (
+                  <>
+                    <div className="flex items-center border rounded-lg">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="px-3 py-1 text-sm font-medium">{quantity}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setQuantity(quantity + 1)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <Button 
+                      size="sm" 
+                      onClick={handleAddToCart}
+                      className="gap-1"
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Add
+                    </Button>
+                  </>
+                )}
                 
-                <Button 
-                  size="sm" 
-                  onClick={handleAddToCart}
-                  className="gap-1"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  Add
-                </Button>
+                {/* Show "Select Options" button for variable products */}
+                {product.isVariableProduct && (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push(`/product/${product.id}`)}
+                    className="gap-1 w-full"
+                  >
+                    Select Options
+                  </Button>
+                )}
               </div>
             )}
           </div>

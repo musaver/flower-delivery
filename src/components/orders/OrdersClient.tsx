@@ -18,12 +18,17 @@ interface OrderItem {
   quantity: number;
   price: number;
   totalPrice: number;
+  // Variation information
+  selectedAttributes?: { [key: string]: string };
+  variantSku?: string;
+  productImage?: string;
 }
 
 interface Order {
   id: string;
   orderNumber: string;
   userId: string;
+  orderType?: 'delivery' | 'pickup';
   items: OrderItem[];
   total: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'completed' | 'cancelled';
@@ -31,11 +36,17 @@ interface Order {
   paymentMethod: 'cod' | 'gateway';
   paymentStatus: string;
   orderNotes?: string;
-  deliveryAddress: {
+  deliveryAddress?: {
     street: string;
     city: string;
     state: string;
     zipCode: string;
+    instructions?: string;
+  };
+  pickupLocation?: {
+    id: string;
+    name: string;
+    address: string;
     instructions?: string;
   };
   createdAt: string;
@@ -88,6 +99,20 @@ export function OrdersClient({ userId }: OrdersClientProps) {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          console.log('Fetched orders data:', data.orders);
+          // Debug first order's items
+          if (data.orders.length > 0) {
+            console.log('First order items:', data.orders[0].items);
+            data.orders[0].items.forEach((item: any, index: number) => {
+              console.log(`Item ${index}:`, {
+                productName: item.productName,
+                selectedAttributes: item.selectedAttributes,
+                variantSku: item.variantSku,
+                hasSelectedAttributes: !!item.selectedAttributes,
+                selectedAttributesKeys: item.selectedAttributes ? Object.keys(item.selectedAttributes) : []
+              });
+            });
+          }
           setOrders(data.orders);
         }
       }
@@ -300,19 +325,75 @@ export function OrdersClient({ userId }: OrdersClientProps) {
           </div>
         )}
 
+        {/* Address Information - Delivery or Pickup */}
         <div className="text-sm text-muted-foreground">
-          <p>{order.deliveryAddress.street}</p>
-          <p>{order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}</p>
+          {order.orderType === 'pickup' && order.pickupLocation ? (
+            <div className="flex items-start gap-2">
+              <div className="flex items-center gap-1 text-blue-600 font-medium">
+                <MapPin className="h-4 w-4" />
+                <span>Pickup Location</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2">
+              <div className="flex items-center gap-1">
+                <MapPin className="h-4 w-4" />
+                <span>Delivery Address</span>
+              </div>
+            </div>
+          )}
+          
+          {order.orderType === 'pickup' && order.pickupLocation ? (
+            <div className="mt-1 pl-5">
+              <p className="font-medium">{order.pickupLocation.name}</p>
+              <p>{order.pickupLocation.address}</p>
+              {order.pickupLocation.instructions && (
+                <p className="text-xs italic text-blue-600 mt-1">
+                  Instructions: {order.pickupLocation.instructions}
+                </p>
+              )}
+            </div>
+          ) : order.deliveryAddress ? (
+            <div className="mt-1 pl-5">
+              <p>{order.deliveryAddress.street}</p>
+              <p>{order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}</p>
+              {order.deliveryAddress.instructions && (
+                <p className="text-xs italic mt-1">
+                  Instructions: {order.deliveryAddress.instructions}
+                </p>
+              )}
+            </div>
+          ) : null}
         </div>
 
         {/* Order Items Summary */}
         <div className="border-t pt-3">
           <p className="text-sm font-medium mb-2">Items ({order.items.length})</p>
-          <div className="space-y-1">
+          <div className="space-y-2">
             {order.items.slice(0, 2).map((item) => (
               <div key={item.id} className="flex justify-between text-sm">
-                <span>{item.quantity}x {item.productName}</span>
-                <span>${item.totalPrice.toFixed(2)}</span>
+                <div className="flex-1">
+                  <div className="flex justify-between">
+                    <span>{item.quantity}x {item.productName}</span>
+                    <span>${item.totalPrice.toFixed(2)}</span>
+                  </div>
+                  
+                  {/* Show selected variant information */}
+                  {item.selectedAttributes && Object.keys(item.selectedAttributes).length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {Object.entries(item.selectedAttributes).map(([key, value]) => (
+                        <span key={key} className="inline-flex items-center px-1 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+                          {key}: {value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Show variant SKU if available */}
+                  {item.variantSku && (
+                    <p className="text-xs text-muted-foreground mt-1">SKU: {item.variantSku}</p>
+                  )}
+                </div>
               </div>
             ))}
             {order.items.length > 2 && (
@@ -323,8 +404,11 @@ export function OrdersClient({ userId }: OrdersClientProps) {
           </div>
         </div>
 
-        {/* Mark as Completed Button - Only show for orders with delivery status 'delivered' */}
-        {showActions && order.deliveryStatus === 'delivered' && (
+        {/* Mark as Completed Button - Show for delivered orders or pickup orders ready for pickup */}
+        {showActions && (
+          (order.deliveryStatus === 'delivered') || 
+          (order.orderType === 'pickup' && ['confirmed', 'preparing'].includes(order.status))
+        ) && (
           <div className="border-t pt-4">
             <Button 
               className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -339,7 +423,7 @@ export function OrdersClient({ userId }: OrdersClientProps) {
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Mark as Completed
+                  {order.orderType === 'pickup' ? 'Confirm Pickup Complete' : 'Mark as Completed'}
                 </>
               )}
             </Button>

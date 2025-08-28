@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react';
-import { Truck, DollarSign, Gift, Star, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Truck, DollarSign, Gift, Star, User, Mail, Phone, MapPin, Package, Store } from 'lucide-react';
+import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,12 +31,13 @@ interface CustomerPoints {
 
 interface CheckoutData {
   paymentMethod: 'cod';
+  orderType: 'delivery' | 'pickup';
   customerInfo: {
     name: string;
     email: string;
     phone: string;
   };
-  deliveryAddress: {
+  deliveryAddress?: {
     street: string;
     city: string;
     state: string;
@@ -44,6 +46,7 @@ interface CheckoutData {
     longitude?: number;
     instructions?: string;
   };
+  pickupLocationId?: string;
   orderNotes: string;
   pointsToRedeem?: number;
   pointsDiscountAmount?: number;
@@ -57,8 +60,22 @@ interface CheckoutFormWithDataProps {
   onSubmit: (data: CheckoutData) => void;
 }
 
+interface PickupLocation {
+  id: string;
+  name: string;
+  address: string;
+  instructions?: string;
+  latitude?: string;
+  longitude?: string;
+  isActive: boolean;
+}
+
 export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, onSubmit }: CheckoutFormWithDataProps) {
+  const { state } = useCart();
   const [paymentMethod, setPaymentMethod] = useState<'cod'>('cod');
+  const [orderType, setOrderType] = useState<'delivery' | 'pickup'>('delivery');
+  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
+  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string>('');
   const [orderNotes, setOrderNotes] = useState('');
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -81,6 +98,31 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [pointsDiscountAmount, setPointsDiscountAmount] = useState(0);
   const [useAllPoints, setUseAllPoints] = useState(false);
+
+  // Fetch pickup locations when pickup is selected
+  useEffect(() => {
+    const fetchPickupLocations = async () => {
+      if (orderType !== 'pickup') return;
+      
+      try {
+        const response = await fetch('/api/pickup-locations');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setPickupLocations(result.data);
+            // Auto-select first location if available
+            if (result.data.length > 0 && !selectedPickupLocationId) {
+              setSelectedPickupLocationId(result.data[0].id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching pickup locations:', error);
+      }
+    };
+
+    fetchPickupLocations();
+  }, [orderType, selectedPickupLocationId]);
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -198,8 +240,10 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
     
     const checkoutData: CheckoutData = {
       paymentMethod,
+      orderType,
       customerInfo,
-      deliveryAddress: address,
+      deliveryAddress: orderType === 'delivery' ? address : undefined,
+      pickupLocationId: orderType === 'pickup' ? selectedPickupLocationId : undefined,
       orderNotes,
       pointsToRedeem,
       pointsDiscountAmount,
@@ -228,6 +272,52 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Cart Items */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Your Items ({state.itemCount})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {state.items.map((item) => (
+            <div key={item.product.id} className="flex gap-3 p-3 bg-muted/50 rounded-lg">
+              <img
+                src={item.product.image}
+                alt={item.product.name}
+                className="w-12 h-12 object-cover rounded"
+              />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-medium truncate">{item.product.name}</h4>
+                <p className="text-sm text-muted-foreground">{item.product.category}</p>
+                
+                {/* Show selected variant information */}
+                {item.product.selectedAttributes && Object.keys(item.product.selectedAttributes).length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {Object.entries(item.product.selectedAttributes).map(([key, value]) => (
+                      <span key={key} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-background border">
+                        {key}: {value}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Show variant SKU if available */}
+                {item.product.variantSku && (
+                  <p className="text-xs text-muted-foreground mt-1">SKU: {item.product.variantSku}</p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="font-medium">${(item.product.price * item.quantity).toFixed(2)}</p>
+                <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                <p className="text-xs text-muted-foreground">${item.product.price.toFixed(2)} each</p>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* Order Summary */}
       <Card>
         <CardHeader>
@@ -342,6 +432,72 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
         </Card>
       )}
 
+      {/* Order Type Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Order Type</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup value={orderType} onValueChange={(value) => setOrderType(value as 'delivery' | 'pickup')}>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="delivery" id="delivery" />
+              <Label htmlFor="delivery" className="flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Delivery
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="pickup" id="pickup" />
+              <Label htmlFor="pickup" className="flex items-center gap-2">
+                <Store className="h-4 w-4" />
+                Pickup
+              </Label>
+            </div>
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
+      {/* Pickup Location Selection */}
+      {orderType === 'pickup' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Select Pickup Location
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pickupLocations.length > 0 ? (
+              <RadioGroup value={selectedPickupLocationId} onValueChange={setSelectedPickupLocationId}>
+                {pickupLocations.map((location) => (
+                  <div key={location.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-muted/50">
+                    <RadioGroupItem value={location.id} id={location.id} className="mt-1" />
+                    <div className="flex-1">
+                      <Label htmlFor={location.id} className="font-medium cursor-pointer">
+                        {location.name}
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">{location.address}</p>
+                      {location.instructions && (
+                        <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {location.instructions}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </RadioGroup>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Store className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No pickup locations available at this time.</p>
+                <p className="text-sm">Please select delivery instead.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Customer Information */}
       <Card>
         <CardHeader>
@@ -398,8 +554,9 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
         </CardContent>
       </Card>
 
-      {/* Delivery Address */}
-      <Card>
+      {/* Delivery Address - Only show for delivery orders */}
+      {orderType === 'delivery' && (
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -508,6 +665,7 @@ export function CheckoutFormWithData({ total, loyaltySettings, customerPoints, o
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Payment Method */}
       <Card>

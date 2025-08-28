@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { products, categories, productInventory } from '@/lib/schema';
+import { products, categories, productInventory, productVariants } from '@/lib/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
           isActive: products.isActive,
           isFeatured: products.isFeatured,
           tags: products.tags,
+          productType: products.productType,
           createdAt: products.createdAt,
         },
         category: {
@@ -58,11 +59,25 @@ export async function GET(req: NextRequest) {
         // Get inventory info to determine stock status
         inventory: {
           totalQuantity: sql<number>`COALESCE(SUM(${productInventory.quantity}), 0)`,
+        },
+        // Get variant stock information for variable products
+        variantStock: {
+          totalVariants: sql<number>`COUNT(CASE WHEN ${products.productType} = 'variable' AND ${productVariants.isActive} = 1 THEN 1 END)`,
+          outOfStockVariants: sql<number>`COUNT(CASE WHEN ${products.productType} = 'variable' AND ${productVariants.isActive} = 1 AND ${productVariants.outOfStock} = 1 THEN 1 END)`,
+        },
+        // Get price range for variable products
+        priceRange: {
+          minPrice: sql<number>`MIN(CASE WHEN ${products.productType} = 'variable' AND ${productVariants.isActive} = 1 THEN ${productVariants.price} END)`,
+          maxPrice: sql<number>`MAX(CASE WHEN ${products.productType} = 'variable' AND ${productVariants.isActive} = 1 THEN ${productVariants.price} END)`,
         }
       })
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .leftJoin(productInventory, eq(productInventory.productId, products.id))
+      .leftJoin(productVariants, and(
+        eq(productVariants.productId, products.id),
+        eq(productVariants.isActive, true)
+      ))
       .where(and(...whereConditions))
       .groupBy(products.id, categories.id)
       .orderBy(
@@ -127,22 +142,67 @@ export async function GET(req: NextRequest) {
         console.warn('Failed to parse product tags:', e);
         tags = [];
       }
+
+      // Calculate stock status based on product type
+      let inStock = false;
+      if (item.product.productType === 'variable') {
+        // For variable products: in stock if has variants and not ALL variants are out of stock
+        const hasVariants = (item.variantStock?.totalVariants || 0) > 0;
+        const allVariantsOutOfStock = hasVariants && 
+          item.variantStock?.totalVariants === item.variantStock?.outOfStockVariants;
+        inStock = hasVariants && !allVariantsOutOfStock;
+        
+        console.log(`=== PRODUCT STOCK DEBUG (${item.product.name}) ===`);
+        console.log('Product Type:', item.product.productType);
+        console.log('Total Variants:', item.variantStock?.totalVariants);
+        console.log('Out of Stock Variants:', item.variantStock?.outOfStockVariants);
+        console.log('Has Variants:', hasVariants);
+        console.log('All Variants Out of Stock:', allVariantsOutOfStock);
+        console.log('Final inStock:', inStock);
+        console.log('Price Range - Min:', item.priceRange?.minPrice, 'Max:', item.priceRange?.maxPrice);
+      } else {
+        // For simple products: use inventory quantity
+        inStock = (item.inventory?.totalQuantity || 0) > 0;
+      }
+
+      // Calculate display price for variable products
+      let displayPrice = parseFloat(item.product.price?.toString() || '0');
+      let minPrice = null;
+      let maxPrice = null;
+      let isVariableProduct = item.product.productType === 'variable';
+
+      if (isVariableProduct && item.priceRange?.minPrice && item.priceRange?.maxPrice) {
+        minPrice = parseFloat(item.priceRange.minPrice.toString());
+        maxPrice = parseFloat(item.priceRange.maxPrice.toString());
+        
+        // For variable products, use the minimum price as the main display price
+        displayPrice = minPrice;
+        
+        console.log('Price Range Calculation:');
+        console.log('- Min Price:', minPrice);
+        console.log('- Max Price:', maxPrice);
+        console.log('- Display Price:', displayPrice);
+      }
       
       return {
         id: item.product.id,
         name: item.product.name,
         category: item.category?.name || 'Uncategorized',
         categorySlug: item.category?.slug || 'uncategorized',
-        price: parseFloat(item.product.price?.toString() || '0'),
+        price: displayPrice,
         comparePrice: item.product.comparePrice ? parseFloat(item.product.comparePrice.toString()) : null,
-        image: images[0] || '/placeholder-product.jpg', // First image or placeholder
+        // Add price range information for variable products
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+        isVariableProduct: isVariableProduct,
+        image: images[0] || null, // First image or null for placeholder
         images: images,
 
         description: item.product.shortDescription || item.product.description || '',
         thc: parseFloat(item.product.thc?.toString() || '0'),
         cbd: parseFloat(item.product.cbd?.toString() || '0'),
         strain: tags.find(tag => ['indica', 'sativa', 'hybrid'].includes(tag.toLowerCase())) || 'hybrid',
-        inStock: (item.inventory?.totalQuantity || 0) > 0,
+        inStock: inStock,
         isFeatured: item.product.isFeatured || false,
         tags: tags,
         createdAt: item.product.createdAt,

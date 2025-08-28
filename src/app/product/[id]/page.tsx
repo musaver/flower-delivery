@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
+import { VariationSelectorV2 } from '@/components/products/VariationSelectorV2';
+import { PriceMatrixEntry } from '@/hooks/useProductVariants';
 import { 
   Plus, 
   Minus, 
@@ -22,7 +25,8 @@ import {
   MessageCircle,
   Facebook,
   Twitter,
-  ShoppingCart
+  ShoppingCart,
+  Package
 } from 'lucide-react';
 
 interface TagItem {
@@ -48,6 +52,7 @@ interface ProductDetails {
   cbd: number;
   strain: string;
   inStock: boolean;
+  productType?: string;
   effects: TagItem[];
   flavors: TagItem[];
   medicalUses: TagItem[];
@@ -60,6 +65,7 @@ interface ProductDetails {
 }
 
 export default function ProductDetails() {
+  const { data: session, status } = useSession();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -67,8 +73,20 @@ export default function ProductDetails() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
+  const [selectedVariant, setSelectedVariant] = useState<PriceMatrixEntry | null>(null);
+  const [selectedAttributes, setSelectedAttributes] = useState<{ [key: string]: string }>({});
   const { addToCartWithToast, state } = useCart();
   const { toast } = useToast();
+
+  // All hooks must be called before any conditional returns
+  useEffect(() => {
+    if (status === 'loading') return; // Still loading
+    if (!session) {
+      window.location.href = '/register';
+      return;
+    }
+  }, [session, status]);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -79,6 +97,7 @@ export default function ProductDetails() {
         
         if (result.success) {
           setProduct(result.data);
+          setImageErrors(new Set()); // Reset image errors for new product
         } else {
           console.error('Failed to load product:', result.error);
           router.push('/');
@@ -96,21 +115,43 @@ export default function ProductDetails() {
     }
   }, [id, router]);
 
+  // Helper functions
+  const handleImageError = (imageIndex: number) => {
+    setImageErrors(prev => new Set([...prev, imageIndex]));
+  };
+
+  const handleVariantChange = useCallback((variant: PriceMatrixEntry | null, attributes: { [key: string]: string }) => {
+    setSelectedVariant(variant);
+    setSelectedAttributes(attributes);
+  }, []);
+
   const handleAddToCart = () => {
     if (!product) return;
+
+    // Use variant price if available, otherwise use base product price
+    const effectivePrice = selectedVariant?.price || product.price;
+    const effectiveInStock = selectedVariant ? 
+      !selectedVariant.outOfStock : 
+      product.inStock;
 
     // Convert ProductDetails to Product type for cart
     const productForCart = {
       id: product.id,
       name: product.name,
       category: product.category,
-      price: product.price,
+      price: effectivePrice,
       image: product.image,
       description: product.description,
       thc: product.thc,
       cbd: product.cbd,
       strain: product.strain as 'indica' | 'sativa' | 'hybrid',
-      inStock: product.inStock,
+      inStock: effectiveInStock,
+      // Add variant information if available
+      ...(selectedVariant && {
+        variantId: selectedVariant.variantId,
+        variantSku: selectedVariant.sku,
+        selectedAttributes: selectedAttributes,
+      }),
     };
 
     addToCartWithToast(productForCart, quantity);
@@ -153,6 +194,23 @@ export default function ProductDetails() {
     }
   };
 
+  // Conditional returns after all hooks
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if not authenticated
+  if (!session) {
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -187,6 +245,8 @@ export default function ProductDetails() {
   }
 
   const currentImage = product.images[selectedImageIndex] || product.image;
+  const currentImageHasError = imageErrors.has(selectedImageIndex);
+  const shouldShowPlaceholder = !currentImage || currentImageHasError;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -195,11 +255,18 @@ export default function ProductDetails() {
       <main className="container mx-auto px-4 py-6">
         {/* Product Image Gallery */}
         <div className="relative mb-6">
-          <img
-            src={currentImage}
-            alt={product.name}
-            className="w-full h-64 object-cover rounded-lg"
-          />
+          {shouldShowPlaceholder ? (
+            <div className="w-full h-64 bg-muted flex items-center justify-center rounded-lg">
+              <Package className="w-16 h-16 text-muted-foreground/50" />
+            </div>
+          ) : (
+            <img
+              src={currentImage}
+              alt={product.name}
+              className="w-full h-64 object-cover rounded-lg"
+              onError={() => handleImageError(selectedImageIndex)}
+            />
+          )}
           <Button
             size="icon"
             variant="secondary"
@@ -212,21 +279,33 @@ export default function ProductDetails() {
           {/* Image thumbnails */}
           {product.images.length > 1 && (
             <div className="flex gap-2 mt-4 overflow-x-auto">
-              {product.images.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImageIndex(index)}
-                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 ${
-                    selectedImageIndex === index ? 'border-primary' : 'border-transparent'
-                  }`}
-                >
-                  <img
-                    src={image}
-                    alt={`${product.name} ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
+              {product.images.map((image, index) => {
+                const thumbnailHasError = imageErrors.has(index);
+                const shouldShowThumbnailPlaceholder = !image || thumbnailHasError;
+                
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 ${
+                      selectedImageIndex === index ? 'border-primary' : 'border-transparent'
+                    }`}
+                  >
+                    {shouldShowThumbnailPlaceholder ? (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <Package className="w-6 h-6 text-muted-foreground/50" />
+                      </div>
+                    ) : (
+                      <img
+                        src={image}
+                        alt={`${product.name} ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={() => handleImageError(index)}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -265,12 +344,26 @@ export default function ProductDetails() {
             </div>
             <div className="text-right">
               <div className="flex flex-col items-end">
-                {product.comparePrice && (
-                  <p className="text-sm text-muted-foreground line-through">
-                    ${product.comparePrice.toFixed(2)}
-                  </p>
+                {/* Show variant price if available, otherwise show base product price */}
+                {selectedVariant ? (
+                  <>
+                    {selectedVariant.comparePrice && selectedVariant.comparePrice > selectedVariant.price && (
+                      <p className="text-sm text-muted-foreground line-through">
+                        ${selectedVariant.comparePrice.toFixed(2)}
+                      </p>
+                    )}
+                    <p className="text-2xl font-bold text-primary">${selectedVariant.price.toFixed(2)}</p>
+                  </>
+                ) : (
+                  <>
+                    {product.comparePrice && (
+                      <p className="text-sm text-muted-foreground line-through">
+                        ${product.comparePrice.toFixed(2)}
+                      </p>
+                    )}
+                    <p className="text-2xl font-bold text-primary">${product.price.toFixed(2)}</p>
+                  </>
                 )}
-                <p className="text-2xl font-bold text-primary">${product.price.toFixed(2)}</p>
                 <p className="text-sm text-muted-foreground">per gram</p>
               </div>
             </div>
@@ -408,6 +501,12 @@ export default function ProductDetails() {
             </CardContent>
           </Card>*/}
 
+          {/* Variation Selector */}
+          <VariationSelectorV2 
+            productId={id}
+            onVariantChange={handleVariantChange}
+          />
+
           {/* Add to Cart */}
           <Card>
             <CardContent className="pt-6">
@@ -438,17 +537,27 @@ export default function ProductDetails() {
               <div className="flex items-center justify-between mb-4">
                 <span className="font-medium">Total</span>
                 <span className="text-xl font-bold text-primary">
-                  ${(product.price * quantity).toFixed(2)}
+                  ${((selectedVariant?.price || product.price) * quantity).toFixed(2)}
                 </span>
               </div>
               
               <Button
                 className="w-full gap-2"
                 onClick={handleAddToCart}
-                disabled={!product.inStock}
+                disabled={selectedVariant ? 
+                  selectedVariant.outOfStock : 
+                  !product.inStock
+                }
               >
                 <ShoppingCart className="h-4 w-4" />
-                {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+                {(() => {
+                  if (selectedVariant) {
+                    return selectedVariant.outOfStock 
+                      ? 'Out of Stock' 
+                      : 'Add to Cart';
+                  }
+                  return product.inStock ? 'Add to Cart' : 'Out of Stock';
+                })()}
               </Button>
             </CardContent>
           </Card>

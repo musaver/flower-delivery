@@ -21,15 +21,24 @@ interface Category {
 }
 
 export default function Home() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const { addToCartWithToast, state } = useCart();
 
-  // Check if user is a driver
+  // Check if user is a driver (define this early to use in hooks)
   const isDriver = session?.user?.userType === 'driver';
+
+  // Redirect to register if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return; // Still loading
+    if (!session) {
+      window.location.href = '/register';
+      return;
+    }
+  }, [session, status]);
 
   // Reset loading state when user type changes to driver
   useEffect(() => {
@@ -42,17 +51,34 @@ export default function Home() {
 
   // Fetch categories on component mount (only for non-driver users)
   useEffect(() => {
-    if (!isDriver) {
+    if (!isDriver && session) {
       fetchCategories();
     }
-  }, [isDriver]);
+  }, [isDriver, session]);
 
   // Fetch products when category changes (only for non-driver users)
   useEffect(() => {
-    if (!isDriver) {
+    if (!isDriver && session) {
       fetchProducts();
     }
-  }, [selectedCategory, isDriver]);
+  }, [selectedCategory, isDriver, session]);
+
+  // Show loading while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if not authenticated
+  if (!session) {
+    return null;
+  }
 
   const fetchCategories = async () => {
     try {

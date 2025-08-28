@@ -32,6 +32,7 @@ export const user = mysqlTable('user', {
   latitude: decimal("latitude", { precision: 10, scale: 8 }),
   longitude: decimal("longitude", { precision: 11, scale: 8 }),
   userType: varchar("user_type", { length: 20 }).default("customer"), // customer, driver, admin
+  status: varchar("status", { length: 20 }).default("pending"), // pending, approved, suspended
   newsletter: boolean("newsletter").default(false),
   dateOfBirth: datetime("date_of_birth"),
   otp: varchar("otp", { length: 6 }),
@@ -40,6 +41,7 @@ export const user = mysqlTable('user', {
   notifyOrderUpdates: boolean("notify_order_updates").default(true),
   notifyPromotions: boolean("notify_promotions").default(false),
   notifyDriverMessages: boolean("notify_driver_messages").default(true),
+  note: text("note"), // Additional user note field
   createdAt: datetime("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: datetime("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
@@ -140,8 +142,10 @@ export const products = mysqlTable("products", {
   isDigital: boolean("is_digital").default(false),
   requiresShipping: boolean("requires_shipping").default(true),
   taxable: boolean("taxable").default(true),
+  outOfStock: boolean("out_of_stock").default(false),
   metaTitle: varchar("meta_title", { length: 255 }),
   metaDescription: text("meta_description"),
+
   
   // Variable Product Fields
   productType: varchar("product_type", { length: 50 }).default("simple"), // 'simple' or 'variable'
@@ -180,6 +184,7 @@ export const productVariants = mysqlTable("product_variants", {
   allowBackorder: boolean("allow_backorder").default(false),
   variantOptions: json("variant_options"), // {color: "Red", size: "Large"}
   isActive: boolean("is_active").default(true),
+  outOfStock: boolean("out_of_stock").default(false),
   createdAt: datetime("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: datetime("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
@@ -355,6 +360,10 @@ export const orders = mysqlTable("orders", {
   serviceDate: varchar("service_date", { length: 10 }), // YYYY-MM-DD format
   serviceTime: varchar("service_time", { length: 8 }), // HH:MM format
   
+  // Order type and pickup location fields
+  orderType: varchar("order_type", { length: 20 }).default("delivery"), // delivery, pickup
+  pickupLocationId: varchar("pickup_location_id", { length: 255 }), // Reference to pickup_locations
+  
   // Driver assignment fields
   assignedDriverId: varchar("assigned_driver_id", { length: 255 }), // Current assigned driver
   deliveryStatus: varchar("delivery_status", { length: 30 }).default("pending"), // pending, assigned, out_for_delivery, delivered, failed
@@ -450,6 +459,19 @@ export const shippingLabels = mysqlTable("shipping_labels", {
   weight: decimal("weight", { precision: 8, scale: 2 }),
   dimensions: json("dimensions"), // {length, width, height}
   status: varchar("status", { length: 50 }).default("created"), // created, printed, shipped, delivered
+  createdAt: datetime("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: datetime("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Pickup Locations
+export const pickupLocations = mysqlTable("pickup_locations", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  address: text("address").notNull(),
+  instructions: text("instructions"), // Special instructions for pickup
+  latitude: decimal("latitude", { precision: 10, scale: 8 }),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }),
+  isActive: boolean("is_active").default(true),
   createdAt: datetime("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: datetime("updated_at").default(sql`CURRENT_TIMESTAMP`),
 });
@@ -721,6 +743,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   assignedDriver: one(drivers, {
     fields: [orders.assignedDriverId],
     references: [drivers.id],
+  }),
+  pickupLocation: one(pickupLocations, {
+    fields: [orders.pickupLocationId],
+    references: [pickupLocations.id],
   }),
   orderItems: many(orderItems),
   returns: many(returns),
@@ -1094,6 +1120,11 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
     fields: [chatMessages.senderId],
     references: [user.id],
   }),
+}));
+
+// Pickup Locations Relations
+export const pickupLocationsRelations = relations(pickupLocations, ({ many }) => ({
+  orders: many(orders),
 }));
 
 // Driver Order Rejections - track which orders drivers have rejected

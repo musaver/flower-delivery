@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Check, MapPin, Star } from 'lucide-react';
+import { Check, MapPin, Star, Package } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,18 @@ interface OrderData {
     zipCode: string;
     instructions?: string;
   };
+  items?: {
+    product: {
+      id: string;
+      name: string;
+      image: string;
+      price: number;
+      category: string;
+      selectedAttributes?: { [key: string]: string };
+      variantSku?: string;
+    };
+    quantity: number;
+  }[];
 }
 
 export default function ThankYouPage() {
@@ -206,6 +218,54 @@ export default function ThankYouPage() {
                   </Badge>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Order Items */}
+        {orderData.items && orderData.items.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Your Items ({orderData.items.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {orderData.items.map((item, index) => (
+                <div key={index} className="flex gap-3 p-3 bg-muted/50 rounded-lg">
+                  <img
+                    src={item.product.image}
+                    alt={item.product.name}
+                    className="w-12 h-12 object-cover rounded"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate">{item.product.name}</h4>
+                    <p className="text-sm text-muted-foreground">{item.product.category}</p>
+                    
+                    {/* Show selected variant information */}
+                    {item.product.selectedAttributes && Object.keys(item.product.selectedAttributes).length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {Object.entries(item.product.selectedAttributes).map(([key, value]) => (
+                          <span key={key} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-background border">
+                            {key}: {value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Show variant SKU if available */}
+                    {item.product.variantSku && (
+                      <p className="text-xs text-muted-foreground mt-1">SKU: {item.product.variantSku}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">${(item.product.price * item.quantity).toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                    <p className="text-xs text-muted-foreground">${item.product.price.toFixed(2)} each</p>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}

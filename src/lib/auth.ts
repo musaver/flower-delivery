@@ -55,6 +55,12 @@ export const authOptions: AuthOptions = {
           .from(userTable)
           .where(eq(userTable.email, credentials.email));
         if (!foundUser) return null;
+        
+        // Check user status - only allow approved users to login
+        if (foundUser.status !== 'approved') {
+          return null; // Deny login for pending or suspended users
+        }
+        
         return {
           id: foundUser.id,
           email: foundUser.email,
@@ -71,19 +77,26 @@ export const authOptions: AuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (account?.provider && user?.email) {
-        const [existingAccount] = await db
+      // For OAuth providers (Google, Facebook), check user status
+      if (account?.provider && account.provider !== 'credentials' && user?.email) {
+        const [existingUser] = await db
           .select()
-          .from(accountTable)
-          .where(eq(accountTable.providerAccountId, account.providerAccountId));
+          .from(userTable)
+          .where(eq(userTable.email, user.email));
 
-        if (!existingAccount) {
-          const [existingUser] = await db
+        if (existingUser) {
+          // Check user status - only allow approved users to login
+          if (existingUser.status !== 'approved') {
+            return false; // Deny login for pending or suspended users
+          }
+          
+          // Check if account link exists
+          const [existingAccount] = await db
             .select()
-            .from(userTable)
-            .where(eq(userTable.email, user.email));
+            .from(accountTable)
+            .where(eq(accountTable.providerAccountId, account.providerAccountId));
 
-          if (existingUser) {
+          if (!existingAccount) {
             await db.insert(accountTable).values({
               userId: existingUser.id,
               provider: account.provider,
@@ -97,8 +110,11 @@ export const authOptions: AuthOptions = {
               scope: account.scope,
               id_token: account.id_token,
             });
-            return true;
           }
+          return true;
+        } else {
+          // New OAuth user - create with pending status
+          return false; // Redirect them to register first
         }
       }
       return true;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { orders, orderItems, user, drivers } from '@/lib/schema';
-import { eq, desc } from 'drizzle-orm';
+import { orders, orderItems, user, drivers, pickupLocations } from '@/lib/schema';
+import { eq, desc, or, and } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,15 +31,29 @@ export async function GET(req: NextRequest) {
 
     const driverId = driverData[0].driverId;
 
-    // Get orders assigned to this driver
+    // Get orders for this driver:
+    // 1. Delivery orders assigned to this driver
+    // 2. Pickup orders (available to all drivers)
     const driverOrders = await db
       .select({
         order: orders,
-        customer: user
+        customer: user,
+        pickupLocation: pickupLocations
       })
       .from(orders)
       .leftJoin(user, eq(orders.userId, user.id))
-      .where(eq(orders.assignedDriverId, driverId))
+      .leftJoin(pickupLocations, eq(orders.pickupLocationId, pickupLocations.id))
+      .where(
+        or(
+          // Delivery orders assigned to this driver
+          and(
+            eq(orders.orderType, 'delivery'),
+            eq(orders.assignedDriverId, driverId)
+          ),
+          // Pickup orders (available to all drivers)
+          eq(orders.orderType, 'pickup')
+        )
+      )
       .orderBy(desc(orders.createdAt));
 
     // Get order items for each order
@@ -50,24 +64,60 @@ export async function GET(req: NextRequest) {
           .from(orderItems)
           .where(eq(orderItems.orderId, orderData.order.id));
 
+        // Build the order object based on order type
+        const isPickupOrder = orderData.order.orderType === 'pickup';
+        
         return {
           id: orderData.order.id,
           orderNumber: orderData.order.orderNumber,
           userId: orderData.order.userId || '',
-          items: items.map(item => ({
-            id: item.id,
-            productName: item.productName,
-            quantity: item.quantity,
-            price: parseFloat(item.price.toString()),
-            totalPrice: parseFloat(item.totalPrice.toString())
-          })),
+          orderType: orderData.order.orderType || 'delivery',
+          items: items.map(item => {
+            // Parse stored variation data from addons JSON field
+            let selectedAttributes = {};
+            let variantSku = null;
+            
+            if (item.addons) {
+              try {
+                const addonData = typeof item.addons === 'string' ? JSON.parse(item.addons) : item.addons;
+                if (addonData?.selectedAttributes) {
+                  selectedAttributes = addonData.selectedAttributes;
+                }
+                if (addonData?.variantSku) {
+                  variantSku = addonData.variantSku;
+                }
+              } catch (error) {
+                console.error('Error parsing variation data for item:', item.id, error);
+              }
+            }
+
+            return {
+              id: item.id,
+              productName: item.productName,
+              quantity: item.quantity,
+              price: parseFloat(item.price.toString()),
+              totalPrice: parseFloat(item.totalPrice.toString()),
+              selectedAttributes: Object.keys(selectedAttributes).length > 0 ? selectedAttributes : undefined,
+              variantSku: variantSku || item.sku || undefined,
+              productImage: item.productImage || undefined
+            };
+          }),
           total: parseFloat(orderData.order.totalAmount.toString()),
           status: orderData.order.status,
           deliveryStatus: orderData.order.deliveryStatus || 'pending',
           paymentMethod: 'cod', // Default since paymentMethod field doesn't exist in schema
           paymentStatus: orderData.order.paymentStatus,
           orderNotes: orderData.order.notes,
-          deliveryAddress: {
+          // For pickup orders, show pickup location; for delivery orders, show delivery address
+          deliveryAddress: isPickupOrder ? {
+            street: orderData.pickupLocation?.address || 'Pickup Location',
+            city: '',
+            state: '',
+            zipCode: '',
+            instructions: orderData.pickupLocation?.instructions || '',
+            latitude: orderData.pickupLocation?.latitude ? parseFloat(orderData.pickupLocation.latitude.toString()) : undefined,
+            longitude: orderData.pickupLocation?.longitude ? parseFloat(orderData.pickupLocation.longitude.toString()) : undefined
+          } : {
             street: orderData.order.shippingAddress1 || '',
             city: orderData.order.shippingCity || '',
             state: orderData.order.shippingState || '',
@@ -76,6 +126,12 @@ export async function GET(req: NextRequest) {
             latitude: orderData.order.shippingLatitude ? parseFloat(orderData.order.shippingLatitude.toString()) : undefined,
             longitude: orderData.order.shippingLongitude ? parseFloat(orderData.order.shippingLongitude.toString()) : undefined
           },
+          pickupLocation: isPickupOrder ? {
+            id: orderData.pickupLocation?.id || '',
+            name: orderData.pickupLocation?.name || 'Unknown Location',
+            address: orderData.pickupLocation?.address || '',
+            instructions: orderData.pickupLocation?.instructions || ''
+          } : undefined,
           createdAt: orderData.order.createdAt?.toISOString() || new Date().toISOString(),
           customerName: orderData.customer?.name || 'Customer',
           customerPhone: orderData.customer?.phone || ''
